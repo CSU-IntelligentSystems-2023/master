@@ -285,12 +285,17 @@ class RecommenderApp(tk.Tk):
             # Get the k most similar movies to the user's rated movies
             distances, indices = knn.kneighbors(df_pivoted.loc[[movieid]], return_distance=True)
             similar_movies = [df_pivoted.index[idx] for idx in indices[0]]
-
-            for r in range(0, 10):
-                r_movie_id = similar_movies[r]            
-                r_movie_name = df_movies.loc[df_movies['movieId']== r_movie_id, 'title']
-                self.buttons[r].config(text = r_movie_name.to_string(index=False))
-                recommendations[r] = r_movie_id, r_movie_name
+            r = 0
+            s = 0
+            while (r<10 and s < len(similar_movies)):
+                r_movie_id = similar_movies[s] 
+                
+                if(r_movie_id not in rated_df.movieId.values):           
+                    r_movie_name = df_movies.loc[df_movies['movieId']== r_movie_id, 'title']
+                    self.buttons[r].config(text = r_movie_name.to_string(index=False))
+                    recommendations[r] = r_movie_id, r_movie_name
+                    r=r+1
+                s=s+1
     
     
 if __name__ == "__main__":
