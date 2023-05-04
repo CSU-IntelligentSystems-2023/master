@@ -91,17 +91,18 @@ test_matrix = csr_matrix(test_df)
 # print(test_matrix.shape[1])  # should be 122
 
 # Create our kNN model and fit it to our movie matrix
-knn_eval = NearestNeighbors(n_neighbors=k, leaf_size=100, metric="euclidean", algorithm='auto')
-knn_eval.fit(test_matrix)
+knn_eval = NearestNeighbors(n_neighbors=k, metric="euclidean", algorithm='auto')
+knn_eval.fit(movie_matrix)
 
+accuracy = []
 precision = []
 recall = []
 f1_score = []
 
-for movie in range(0, test_matrix.shape[0]):
+for movie in range(0, movie_matrix.shape[0]):
 
     # Retrieve the distances and indices of k recommendations
-    distances, indices = knn_eval.kneighbors(test_df.iloc[movie, :].values.reshape(1, -1), n_neighbors=k)
+    distances, indices = knn_eval.kneighbors(merged_df.iloc[movie, :].values.reshape(1, -1), n_neighbors=k)
 
     # print(distances)
     # print(indices)
@@ -109,38 +110,56 @@ for movie in range(0, test_matrix.shape[0]):
     # Define a movie list to hold our recommendations
     movie_ls = []
 
-    # Iterate through our k recommendations
+    # Retrieve the k number of recommendations
     for i in range(0, len(distances.flatten())):
 
-        # If we are not on the first distance (skip over the first which is the movie itself)
-        if i != 0:
-            # Add our movie to the list of recommendations
-            # print(train_data.index[indices.flatten()[i]])
+        # The movie does not equal the movie name we are evaluating
+        if movie != indices.flatten()[i]:
 
+            # Add our movie to the list of recommendations
             movie_ls.append(indices.flatten()[i])  # train_data.index[indices.flatten()[i]]
 
     # Calculate precision, recall, and f1-score
-    true_positives = len(set(movie_ls) & set(test_df.iloc[movie, :][test_df.iloc[movie, :] != 0].index.values))
-    print("movie list: ")
-    print(set(movie_ls))  # returns titles
-    print()
-    print("TEST VALS: ")
-    print(set(test_df.iloc[movie, :][test_df.iloc[movie, :] != 0].index.values))  # returns test matrix indices (A to Z titles)
-    false_positives = len(movie_ls) - true_positives
-    # print(false_positives)
-    false_negatives = len(set(test_df.iloc[movie, :][test_df.iloc[movie, :] != 0].index.values)) - true_positives
-    # print(false_negatives)
-    true_negatives = 0
+    # our recommendations versus WHAT?
+    # print()
+    # print("CHECK:")
+    # print(merged_df.iloc[movie, :][merged_df.iloc[movie, :] >= 3]) # List of movies in matrix mor than rating of 3
 
-    precision.append(true_positives / (true_positives + false_positives)) if (true_positives + false_positives) > 0 else 0
-    recall.append(true_positives / (true_positives + false_negatives)) if (true_positives + false_negatives) > 0 else 0
-    f1_score.append(2 * (precision[-1] * recall[-1]) / (precision[-1] + recall[-1])) if (precision[-1] + recall[-1]) > 0 else 0
+    # The movie in the matrix has a rating >= 3 AND has been recommended
+    # The intersection of actual (in the movie matrix) versus predicted (kNN)
+    true_positives = len(set(movie_ls) & set(merged_df.iloc[movie, :][merged_df.iloc[movie, :] >= 3].index.values))
 
+    # The movie in the matrix has a rating < 3 BUT has been recommended
+    # The difference between predicted (kNN) and actual (in the movie matrix) when P=1 and A=0
+    false_positives = len(set(movie_ls) & set(merged_df.iloc[movie, :][(merged_df.iloc[movie, :] < 3) & (merged_df.iloc[movie, :] > 0)].index.values))
+
+    # The movie in the matrix has a rating >= 3 BUT has not been recommended
+    # The difference between predicted (kNN) and actual (in the movie matrix) when P=0 and A=1
+    false_negatives = len(set(merged_df.iloc[movie, :][merged_df.iloc[movie, :] >= 3].index.values)) - true_positives
+
+    # The movie in the matrix has a rating < 3 AND has not been recommended
+    # The intersection of actual (in the movie matrix) and predicted (kNN) when both are equal to 0.
+    true_negatives = len(set(merged_df.iloc[movie, :][(merged_df.iloc[movie, :] < 3) & (merged_df.iloc[movie, :] > 0)].index.values)) - false_positives
+
+    acc = true_positives / (true_positives + false_positives + false_negatives + true_negatives) if (true_positives + false_positives) > 0 else 0
+    accuracy.append(acc)
+
+    pre = true_positives / (true_positives + false_positives) if (true_positives + false_positives) > 0 else 0
+    precision.append(pre)
+
+    rec = true_positives / (true_positives + false_negatives) if (true_positives + false_negatives) > 0 else 0
+    recall.append(rec)
+
+    f1 = (2 * (precision[-1] * recall[-1]) / (precision[-1] + recall[-1])) if (precision[-1] + recall[-1]) > 0 else 0
+    f1_score.append(f1)
+
+mean_accuracy = np.mean(accuracy)
 mean_precision = np.mean(precision)
 mean_recall = np.mean(recall)
 mean_f1_score = np.mean(f1_score)
 
 print()
+print("Mean Accuracy: ", mean_accuracy)
 print("Mean Precision: ", mean_precision)
 print("Mean Recall: ", mean_recall)
 print("Mean F1 Score: ", mean_f1_score)
