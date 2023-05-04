@@ -3,155 +3,144 @@ import random
 
 import numpy as np
 import pandas as pd
+import seaborn as sn
+from sklearn.preprocessing import MultiLabelBinarizer
 from sklearn.model_selection import train_test_split
 from sklearn.neighbors import NearestNeighbors
 import matplotlib.pyplot as plt
-from sklearn.metrics import confusion_matrix
+from sklearn.metrics import confusion_matrix, mean_squared_error
+from scipy.sparse import csr_matrix
 
 # Load the MovieLens 1M dataset
-ratings_df = pd.read_csv("C:\\Users\\aidah\\OneDrive\\Desktop\\CSU\\Intelligent Systems\\movieLens25mArchive\\ml-25m\\ratings.csv")
-movies_df = pd.read_csv("C:\\Users\\aidah\\OneDrive\\Desktop\\CSU\\Intelligent Systems\\movieLens25mArchive\\ml-25m\\movies.csv")
+ratings_df = pd.read_csv("C:\\Users\\abedf\\Downloads\\ratings.csv")
+movies_df = pd.read_csv("C:\\Users\\abedf\\Downloads\\movies.csv")
+
+ratings_df.drop(columns=['timestamp'])
 
 # Show the ratings dataframe
-print(ratings_df.head())
+# print(ratings_df.head())
 
 # Show the movies dataframe
-print(movies_df.head())
+# print(movies_df.head())
 
-# Split the data into training and test sets
-all_userIds = ratings_df['userId'].unique().tolist()
+# Merge the ratings and movies dataframes
+movie2 = movies_df.loc[:, ["movieId", "title"]]
+rating = ratings_df.loc[:, ["userId", "movieId", "rating"]]
 
-train_users = random.sample(all_userIds, 130033)
+# pivot ratings into movie features
+data = pd.merge(movie2, rating, on='movieId')
+data = data.iloc[:1000000, :]
 
-X = ratings_df.drop(columns=['rating', 'timestamp'])
-X_train = X[X['userId'].isin(train_users)]
-X_test = X[~X['userId'].isin(train_users)]
+# How are we dealing with duplicate values on pivoting?
+merged_df = data.pivot_table(
+    index=['title'],  # previously movieId
+    columns=['userId'],
+    values='rating',
+    aggfunc='mean'
+).fillna(0)
 
-print("X_train: ")
-print(X_train.head())
+# print(merged_df.head())
 
-y = ratings_df.drop(columns=['movieId', 'timestamp'])
-y_train = y[y['userId'].isin(train_users)]
-y_test = y[~y['userId'].isin(train_users)]
+# convert dataframe of movie features to scipy sparse matrix
+movie_matrix = csr_matrix(merged_df.values)
 
-y_train = y_train.drop(columns=['userId'])
-y_test = y_test.drop(columns=['userId'])
-
-print("y_train: ")
-print(y_train.head())
+# print(movie_matrix)
 
 # Set k as the number of similar movies to recommend
-k = 10
+k = 20
 
-# EITHER LOAD AN EXISTING MODEL OR CREATE A NEW ONE
+# PASTE HERE
 
-# Load the model from disk
-# Algorithm:  Ball Tree
-# Metric: Euclidean
-knn = pickle.load(open('C:\\Users\\aidah\\OneDrive\\Desktop\\CSU\\Intelligent Systems\\knnpickle_file_bt_eu', 'rb'))
+# Evaluations Metrics
+# Do an 80-20 train-test split against the merged_df CHANGE TO SPLIT ON USERS
+all_userIds = ratings_df['userId'].unique().tolist()
 
-# Create a new model
-# Fit a kNN model using the training set
-# knn = NearestNeighbors(n_neighbors=k, metric="euclidean", algorithm='ball_tree')
+# Do an 80-20 on our matrix
+movie_array = movie_matrix.toarray()
 
-# knn.fit(X_train.values, y_train)
+# print(movie_array)
+# print("Movie Array Length: ", len(movie_array))
 
-# Create a new file to store the model in
-# knnPickle = open('knnpickle_file_bt_eu', 'wb')
+# Create a list of values from 1 to 610 (inclusive)
+values = list(range(1, 611))
 
-# Specify the source and destination
-# pickle.dump(knn, knnPickle)
+# Shuffle the values in random order
+random.shuffle(values)
 
-# Close the file
-# knnPickle.close()
+# Split the shuffled list into two lists, one containing 80% and another containing 20%
+split_idx = int(len(values) * 0.8)
+train_values = values[:split_idx]
+test_values = values[split_idx:]
 
-# Create our Confusion Matrix
-# Create empty confusion matrix
-conf_matrix = [[0, 0], [0, 0]]
+# Print the length of each list
+# print(f"Length of train set: {len(train_values)}")
+# print(f"Length of test set: {len(test_values)}")
 
+# Split the merged_df dataframe into train and test dataframes
+train_df = merged_df.loc[:, merged_df.columns.isin(train_values)]
+test_df = merged_df.loc[:, merged_df.columns.isin(test_values)]
 
+# Convert the train and test arrays back to csr matrices
+train_matrix = csr_matrix(train_df)
+test_matrix = csr_matrix(test_df)
 
-# Loop over each user in the test set
-for user_id in X_test['userId'].unique():
-    print(user_id)
-    all_user_rows = ratings_df[ratings_df['userId'] == user_id]
-    user_ratings = all_user_rows['rating'].values
-    print(user_ratings)
-    rated_movies = all_user_rows['movieId']
-    print(rated_movies)
-    user_id_list_copy = [user_id] * len(rated_movies)
-    X_test_user_df = pd.DataFrame({
-        'userId': user_id_list_copy,
-        'movieId': rated_movies})
-    print(X_test_user_df)
+# print(train_matrix.shape[0])  # should be 488
+# print(test_matrix.shape[0])  # should be 122
+#
+# print(train_matrix.shape[1])  # should be 488
+# print(test_matrix.shape[1])  # should be 122
 
-    # Get the k most similar movies to the user's rated movies
-    distances, indices = knn.kneighbors(X_test_user_df.values, return_distance=True)
-    similar_movies = [ratings_df.loc[idx, 'movieId'] for idx in indices[0] if idx not in rated_movies][:k]
-    print(similar_movies)
+# Create our kNN model and fit it to our movie matrix
+knn_eval = NearestNeighbors(n_neighbors=k, leaf_size=100, metric="euclidean", algorithm='auto')
+knn_eval.fit(test_matrix)
 
-    # Find the actual ratings of the recommended movies
-    # actual_ratings = []
-    for movie_id in similar_movies:
-        print(movie_id)
-        sm_actual_ratings_df = ratings_df.loc[ratings_df['movieId'] == movie_id, ['rating']].copy()
-        print(sm_actual_ratings_df.head())
-        sm_actual_ratings_df['actual_ratings'] = np.where(
-            (pd.isna(sm_actual_ratings_df['rating']) is False) &
-            (sm_actual_ratings_df['rating'] >= 3), 1, 0)
-        # if not pd.isna(actual_rating):
-        #     actual_ratings.append(1 if actual_rating >= 3 else 0) # rating of 3 or higher
-        actual_ratings = sm_actual_ratings_df['actual_ratings'].values.tolist()
+precision = []
+recall = []
+f1_score = []
 
-        # UPDATE THE CONFUSION MATRIX USING THE THRESHOLD APPROACH
+for movie in range(0, test_matrix.shape[0]):
 
-    # The approach below is known as a "threshold-based" approach
-    # to making predictions or recommendations. It involves setting
-    # a fixed threshold and using it to make binary decisions.
-    # This approach has been used in various fields such as classification,
-    # recommendation systems, and medical testing. It is simple and easy to
-    # implement, but it may not always be the most accurate or optimal approach,
-    # particularly when the distribution of data is imbalanced or the
-    # threshold needs to be adjusted for different scenarios.
-    # Source: Xiaoyuan Su and Taghi M. Khoshgoftaar. "A survey of collaborative
-    # filtering techniques." Advances in Artificial Intelligence 2009 (2009): 4.
-    # PDF Website: https://downloads.hindawi.com/archive/2009/421425.pdf
+    # Retrieve the distances and indices of k recommendations
+    distances, indices = knn_eval.kneighbors(test_df.iloc[movie, :].values.reshape(1, -1), n_neighbors=k)
 
-    # The first line below checks if there are any
-    # actual ratings provided by the user for a particular movie.
-    # If there are no ratings provided, then the
-    # code skips updating the confusion matrix:
-    if len(actual_ratings) > 0:
-        # The next line calculates the predicted rating
-        # based on the actual ratings. It first sums up all the
-        # actual ratings for the movie and then compares it to
-        # half the number of actual ratings. If the sum of actual ratings
-        # is greater than or equal to half the number of actual ratings,
-        # then the predicted rating is set to 1, otherwise, it is set to 0:
-        predicted_rating = 1 if sum(actual_ratings) >= len(actual_ratings) / 2 else 0
-        # The third line of code sets the actual rating as 1 if at
-        # least one actual rating is 1, otherwise, it is set to 0:
-        actual_rating = 1 if sum(actual_ratings) > 0 else 0
-        # The last line of code updates the confusion matrix by
-        # incrementing the count in the corresponding cell based on the actual
-        # and predicted ratings. The conf_matrix variable is a 2x2 matrix that
-        # keeps track of the number of true positives, false positives,
-        # true negatives, and false negatives:
-        conf_matrix[actual_rating][predicted_rating] += 1
+    # print(distances)
+    # print(indices)
 
-# Calculate accuracy and precision from the confusion matrix
-tp = conf_matrix[1][1]  # True Positive
-tn = conf_matrix[0][0]  # True Negative
-fp = conf_matrix[0][1]  # False Positive
-fn = conf_matrix[1][0]  # False Negative
+    # Define a movie list to hold our recommendations
+    movie_ls = []
 
-accuracy = (tp + tn) / (tp + tn + fp + fn)
-precision = tp / (tp + fp)
+    # Iterate through our k recommendations
+    for i in range(0, len(distances.flatten())):
 
-print("Confusion matrix: ", conf_matrix)
-print("Accuracy: ", accuracy)
-print("Precision: ", precision)
+        # If we are not on the first distance (skip over the first which is the movie itself)
+        if i != 0:
+            # Add our movie to the list of recommendations
+            # print(train_data.index[indices.flatten()[i]])
 
-# Plot our confusion matrix
-# conf_matrix.plot()
-# plt.show()
+            movie_ls.append(indices.flatten()[i])  # train_data.index[indices.flatten()[i]]
+
+    # Calculate precision, recall, and f1-score
+    true_positives = len(set(movie_ls) & set(test_df.iloc[movie, :][test_df.iloc[movie, :] != 0].index.values))
+    print("movie list: ")
+    print(set(movie_ls))  # returns titles
+    print()
+    print("TEST VALS: ")
+    print(set(test_df.iloc[movie, :][test_df.iloc[movie, :] != 0].index.values))  # returns test matrix indices (A to Z titles)
+    false_positives = len(movie_ls) - true_positives
+    # print(false_positives)
+    false_negatives = len(set(test_df.iloc[movie, :][test_df.iloc[movie, :] != 0].index.values)) - true_positives
+    # print(false_negatives)
+    true_negatives = 0
+
+    precision.append(true_positives / (true_positives + false_positives)) if (true_positives + false_positives) > 0 else 0
+    recall.append(true_positives / (true_positives + false_negatives)) if (true_positives + false_negatives) > 0 else 0
+    f1_score.append(2 * (precision[-1] * recall[-1]) / (precision[-1] + recall[-1])) if (precision[-1] + recall[-1]) > 0 else 0
+
+mean_precision = np.mean(precision)
+mean_recall = np.mean(recall)
+mean_f1_score = np.mean(f1_score)
+
+print()
+print("Mean Precision: ", mean_precision)
+print("Mean Recall: ", mean_recall)
+print("Mean F1 Score: ", mean_f1_score)
