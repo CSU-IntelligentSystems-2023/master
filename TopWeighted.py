@@ -1,7 +1,9 @@
+import random
 import pandas as pd
 
 class TopWeighted():
-    def top_weighted_movies(genre=None):
+    
+    def top_weighted_movies(genre=None, blacklist=None):
 
         movies_df = pd.read_csv('C:\\Users\\aidah\\OneDrive\\Desktop\\CSU\\Intelligent Systems\\ml-latest-small\\ml-latest-small\\movies.csv')
         ratings_df = pd.read_csv('C:\\Users\\aidah\\OneDrive\\Desktop\\CSU\\Intelligent Systems\\ml-latest-small\\ml-latest-small\\ratings.csv')
@@ -33,17 +35,23 @@ class TopWeighted():
         if genre:
             movies_df = movies_df[movies_df['genres'].str.contains(genre)]
 
-        # sort the movies based on their Weighted Ratings
-        top_movies = movies_df.sort_values('weighted_rating', ascending=False)
+        # excluding blacklisted movies, which are the titles with user rating of 1 or 2
+        if blacklist:
+            movies_df = movies_df[~movies_df['title'].isin(blacklist)]  
 
-        # dropping the release date from the titles
-        list = top_movies['title'].head(10).tolist()
+        # shuffling the movies dataframe and select the top 10 movies
+        movies_df = movies_df.sample(frac=1)  # shuffling the dataframe
+        top_movies = movies_df.sort_values('weighted_rating', ascending=False).head(10)
+
+        # Randomly select a subset of the top movies
+        num_movies = min(10, len(top_movies))  # Select at most 5 movies
+        random_movies = random.sample(top_movies['title'].tolist(), num_movies)
+        #adding titles into a list to pass to main app
         titles_list = []
-        for item in list:
+        for item in random_movies:
             title,sep, year = item.partition(' (')
             titles_list.append(title)
-
-        # printing and returning the top 10 movies based on their Weighted Ratings
         print("Top 10 movies based on Weighted Ratings:")
         print (titles_list)
         return titles_list
+    
