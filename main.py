@@ -274,7 +274,7 @@ class RecommenderApp(tk.Tk):
         self.recommended_label.configure(text = "New Recommendations")
 
         # Get the Popular movies based on user's selected movie genre
-        if self.distance_method.get() == 5:
+        if self.distance_method.get() == 5 or rating == 1 or rating == 2:
             list = TopWeighted.top_weighted_movies(movieGenre, blacklist)
             for r in range(0, 10):
                 name = list[r]
