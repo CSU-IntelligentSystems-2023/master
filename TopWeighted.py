@@ -3,10 +3,11 @@ import pandas as pd
 
 class TopWeighted():
     
-    def top_weighted_movies(genre=None, blacklist=None):
+    def top_weighted_movies(genre=None, blacklist=None ):
 
-        movies_df = pd.read_csv('C:\\Users\\aidah\\OneDrive\\Desktop\\CSU\\Intelligent Systems\\ml-latest-small\\ml-latest-small\\movies.csv')
-        ratings_df = pd.read_csv('C:\\Users\\aidah\\OneDrive\\Desktop\\CSU\\Intelligent Systems\\ml-latest-small\\ml-latest-small\\ratings.csv')
+
+        movies_df = pd.read_csv('.\\movies.csv')
+        ratings_df = pd.read_csv('.\\ratings.csv')
         # IMDB weighted avg formula:
         # Weighted Rating(WR)=[vR/(v+m)]+[mC/(v+m)]
 

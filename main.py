@@ -10,12 +10,27 @@ from tkinter import *
 from scipy.sparse import csr_matrix
 from sklearn.model_selection import train_test_split
 from sklearn.neighbors import NearestNeighbors
+
 from TopWeighted import *
-from heapq import nlargest
+
 
 #paths -- grabbed latest small from: https://grouplens.org/datasets/movielens/
-movies_filename = 'C:\\Users\\aidah\\OneDrive\\Desktop\\CSU\\Intelligent Systems\\ml-latest-small\\ml-latest-small\\movies.csv'
-ratings_filename = 'C:\\Users\\aidah\\OneDrive\\Desktop\\CSU\\Intelligent Systems\\ml-latest-small\\ml-latest-small\\ratings.csv'
+
+movies_filename = '.\\movies.csv'
+ratings_filename = '.\\ratings.csv'
+
+#read the data
+df_movies = pd.read_csv(movies_filename,
+    usecols = ['movieId', 'title'],
+    dtype = {'movieId': 'int32', 'title': 'str'})
+
+df_ratings = pd.read_csv(ratings_filename,
+    usecols = ['userId', 'movieId', 'rating'],      
+    dtype = {'userId' : 'int32', 'movieId': 'int32', 'rating':'float32'})
+
+df_genres = pd.read_csv(movies_filename,
+    usecols = ['movieId','genres'],
+    dtype = {'movieId': 'int32', 'genres': 'str'})
 
 rated_df = pd.DataFrame({'userId':  [162543],'movieId': [0]})
 
@@ -36,19 +51,6 @@ distance_dict = {
   4: "manhattan",
   5: "suggest title based on popuarity"
 }
-
-#read the data
-df_movies = pd.read_csv(movies_filename,
-    usecols = ['movieId', 'title'],
-    dtype = {'movieId': 'int32', 'title': 'str'})
-
-df_ratings = pd.read_csv(ratings_filename,
-    usecols = ['userId', 'movieId', 'rating'],      
-    dtype = {'userId' : 'int32', 'movieId': 'int32', 'rating':'float32'})
-
-df_genres = pd.read_csv(movies_filename,
-    usecols = ['movieId','genres'],
-    dtype = {'movieId': 'int32', 'genres': 'str'})
 
 #set up the ratings as the features for the movies 
 #df_pivoted = pd.merge(df_movies, df_genres, on='movieId')
