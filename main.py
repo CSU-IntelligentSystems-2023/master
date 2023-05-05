@@ -4,6 +4,7 @@ import random
 import numpy as np
 import pandas as pd
 import seaborn as sn
+from statistics import mean
 from sklearn.preprocessing import MultiLabelBinarizer
 from sklearn.model_selection import train_test_split
 from sklearn.neighbors import NearestNeighbors
@@ -47,7 +48,7 @@ movie_matrix = csr_matrix(merged_df.values)
 # print(movie_matrix)
 
 # Set k as the number of similar movies to recommend
-k = 20
+k = 10
 
 # PASTE HERE
 
@@ -99,10 +100,53 @@ precision = []
 recall = []
 f1_score = []
 
-for movie in range(0, movie_matrix.shape[0]):
+col_arr = movie_matrix.tocoo().col
+# print(col_arr)
+row_arr = movie_matrix.tocoo().row
+print(merged_df)
 
+# i = 0
+# for movie in range(0, movie_matrix.shape[0]):
+for x in range(0, movie_matrix.shape[1]):
+    # print(x)
+    col_ind = col_arr[x]  # int(x.indices[0])  # column index
+    curr_userId = int(merged_df.columns[col_ind-1])  # current userId
+    # actual_rating = float(x.data[0])  # actual rating
+    # row_ind = row_arr[i]  # int(x.indptr[0])  # row index
+    # print()
+    # print(x)
+    # print(row_ind)
+    # print()
+
+    # curr_movie_title = merged_df.index.values[row_ind]  # current movie title
+    # print(curr_movie_title)
+
+    # if actual_rating > 0:
     # Retrieve the distances and indices of k recommendations
-    distances, indices = knn_eval.kneighbors(merged_df.iloc[movie, :].values.reshape(1, -1), n_neighbors=k)
+    # print(d.loc[:,'All'])
+    # print(merged_df.iloc[:, col_ind].values.reshape(9719, -1))
+    print()
+
+    my_df = merged_df.copy()
+    ans = []
+    actual_rating_ls = []
+    actual_rating = 0
+
+    for idx, col in enumerate(my_df.columns):
+        if x != idx:
+            my_df[col].values[:] = 0
+        else:
+            my_df.loc[my_df[col] < 3, col] = 0
+            ans.append(my_df.index[my_df[col_ind] > 0].tolist())
+            actual_rating_ls = my_df[col].values
+            actual_rating_ls = actual_rating_ls.tolist()
+            actual_rating_ls = [i for i in actual_rating_ls if i != 0]
+            actual_rating = mean(actual_rating_ls)
+
+    print(my_df)
+
+    distances, indices = knn_eval.kneighbors(my_df, n_neighbors=k)  # put the movie index
+    # distances, indices = knn_eval.kneighbors(merged_df.iloc[col_ind, :].values.reshape(1, -1), n_neighbors=k)  # put the movie index
 
     # print(distances)
     # print(indices)
@@ -114,32 +158,42 @@ for movie in range(0, movie_matrix.shape[0]):
     for i in range(0, len(distances.flatten())):
 
         # The movie does not equal the movie name we are evaluating
-        if movie != indices.flatten()[i]:
+        if indices.flatten()[i] not in ans:  # list of row values having more than 0 ratings:
 
             # Add our movie to the list of recommendations
             movie_ls.append(indices.flatten()[i])  # train_data.index[indices.flatten()[i]]
 
-    # Calculate precision, recall, and f1-score
-    # our recommendations versus WHAT?
-    # print()
-    # print("CHECK:")
-    # print(merged_df.iloc[movie, :][merged_df.iloc[movie, :] >= 3]) # List of movies in matrix mor than rating of 3
+    pred_rating_list = []
 
-    # The movie in the matrix has a rating >= 3 AND has been recommended
-    # The intersection of actual (in the movie matrix) versus predicted (kNN)
-    true_positives = len(set(movie_ls) & set(merged_df.iloc[movie, :][merged_df.iloc[movie, :] >= 3].index.values))
+    for movie_ind in movie_ls:
 
-    # The movie in the matrix has a rating < 3 BUT has been recommended
-    # The difference between predicted (kNN) and actual (in the movie matrix) when P=1 and A=0
-    false_positives = len(set(movie_ls) & set(merged_df.iloc[movie, :][(merged_df.iloc[movie, :] < 3) & (merged_df.iloc[movie, :] > 0)].index.values))
+        # Average all actual ratings in the movie matrix and store it
+        pred_rating_list.append(ratings_df[ratings_df['movieId'] == movie_ind]['rating'].mean())
+        if len(pred_rating_list) == 0:
+            pred_rating_list.append(0)
 
-    # The movie in the matrix has a rating >= 3 BUT has not been recommended
-    # The difference between predicted (kNN) and actual (in the movie matrix) when P=0 and A=1
-    false_negatives = len(set(merged_df.iloc[movie, :][merged_df.iloc[movie, :] >= 3].index.values)) - true_positives
 
-    # The movie in the matrix has a rating < 3 AND has not been recommended
-    # The intersection of actual (in the movie matrix) and predicted (kNN) when both are equal to 0.
-    true_negatives = len(set(merged_df.iloc[movie, :][(merged_df.iloc[movie, :] < 3) & (merged_df.iloc[movie, :] > 0)].index.values)) - false_positives
+    # Drop all nans from pred list
+    pred_rating_list = [x for x in pred_rating_list if str(x) != 'nan']
+    print(pred_rating_list)
+    # Calculate our final predicted rating
+    predicted_rating = mean(pred_rating_list)
+    print(predicted_rating)
+
+    # Create lists to tally our evaluation metric results
+    true_positives = 0
+    false_positives = 0
+    false_negatives = 0
+    true_negatives = 0
+
+    if (actual_rating >= 3) & (predicted_rating >= 3):
+        true_positives += 1
+    elif (actual_rating < 3) & (predicted_rating >= 3):
+        false_positives += 1
+    elif (actual_rating >= 3) & (predicted_rating < 3):
+        false_negatives += 1
+    else:
+        true_negatives += 1
 
     acc = true_positives / (true_positives + false_positives + false_negatives + true_negatives) if (true_positives + false_positives) > 0 else 0
     accuracy.append(acc)
@@ -152,6 +206,7 @@ for movie in range(0, movie_matrix.shape[0]):
 
     f1 = (2 * (precision[-1] * recall[-1]) / (precision[-1] + recall[-1])) if (precision[-1] + recall[-1]) > 0 else 0
     f1_score.append(f1)
+
 
 mean_accuracy = np.mean(accuracy)
 mean_precision = np.mean(precision)
